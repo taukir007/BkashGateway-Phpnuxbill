@@ -1,6 +1,10 @@
 # PHPNuxbill bKash Payment Gateway (Modern Edition)
 
-![bKash Logo](https://upload.wikimedia.org/wikipedia/bn/thumb/a/a8/%E0%A6%AC%E0%A6%BF%E0%A6%95%E0%A6%BE%E0%A6%B6%E0%A7%87%E0%A6%B0_%E0%A6%B2%E0%A7%8B%E0%A6%97%E0%A7%8B.svg/960px-%E0%A6%AC%E0%A6%BF%E0%A6%95%E0%A6%BE%E0%A6%B6%E0%A7%87%E0%A6%B0_%E0%A6%B2%E0%A7%8B%E0%A6%97%E0%A7%8B.svg.png)
+> **Looking for advanced PHPNuxbill UI Customization? Visit the official customization repository here: [taukir007/NuxCustomization](https://github.com/taukir007/NuxCustomization)**
+
+<p align="center">
+  <img src="https://upload.wikimedia.org/wikipedia/bn/thumb/a/a8/%E0%A6%AC%E0%A6%BF%E0%A6%95%E0%A6%BE%E0%A6%B6%E0%A7%87%E0%A6%B0_%E0%A6%B2%E0%A7%8B%E0%A6%97%E0%A7%8B.svg/960px-%E0%A6%AC%E0%A6%BF%E0%A6%95%E0%A6%BE%E0%A6%B6%E0%A7%87%E0%A6%B0_%E0%A6%B2%E0%A7%8B%E0%A6%97%E0%A7%8B.svg.png" width="200" alt="bKash Logo">
+</p>
 
 ## Overview
 
