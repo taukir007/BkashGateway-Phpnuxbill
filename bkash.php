@@ -4,16 +4,13 @@
  * PHP Mikrotik Billing (https://github.com/hotspotbilling/phpnuxbill/)
  *
  * Payment Gateway bkash.com
- *
- * By: Taukir Ahmed
+ * Developed by Taukir Ahmed
  **/
 
 function bkash_validate_config()
 {
     global $config;
-    if (empty($config['bkash_app_key']) || empty($config['bkash_app_secret']) || 
-        empty($config['bkash_username']) || empty($config['bkash_password']) || 
-        empty($config['bkash_environment'])) {
+    if (empty($config['bkash_app_key']) || empty($config['bkash_app_secret']) || empty($config['bkash_username']) || empty($config['bkash_password'])) {
         sendTelegram("BKASH payment gateway not configured");
         r2(U . 'order/package', 'w', Lang::T("Admin has not yet setup BKASH payment gateway, please tell admin"));
     }
@@ -22,38 +19,40 @@ function bkash_validate_config()
 function bkash_show_config()
 {
     global $ui, $config;
-    $ui->assign('_title', 'bKash - Tokenizer - Payment Gateway By Taukir');
-    $ui->assign('config', $config);  // Pass config variables to the template
-    $ui->display('bkash.tpl');  // Display the bKash settings template
+    $ui->assign('_title', 'bKash Gateway - Settings');
+    $ui->display('bkash.tpl');
 }
 
 function bkash_save_config()
 {
     global $admin;
-    
-    // Get POST values
     $bkash_app_key = _post('bkash_app_key');
     $bkash_app_secret = _post('bkash_app_secret');
     $bkash_username = _post('bkash_username');
     $bkash_password = _post('bkash_password');
-    $bkash_environment = _post('bkash_environment');  // Save environment
-    
-    // Save bKash settings
-    foreach (['bkash_app_key', 'bkash_app_secret', 'bkash_username', 'bkash_password', 'bkash_environment'] as $setting) {
-        $d = ORM::for_table('tbl_appconfig')->where('setting', $setting)->find_one();
+    $bkash_env = _post('bkash_env');
+
+    // Helper to save/update
+    $save_config = function($key, $value) {
+        $d = ORM::for_table('tbl_appconfig')->where('setting', $key)->find_one();
         if ($d) {
-            $d->value = $$setting; // Variable variable for the setting
+            $d->value = $value;
             $d->save();
         } else {
             $d = ORM::for_table('tbl_appconfig')->create();
-            $d->setting = $setting;
-            $d->value = $$setting;
+            $d->setting = $key;
+            $d->value = $value;
             $d->save();
         }
-    }
+    };
 
-    // Log and redirect with success message
-    _log('[' . $admin['username'] . ']: bKash ' . Lang::T('Settings_Saved_Successfully'), 'Admin', $admin['id']);
+    $save_config('bkash_app_key', $bkash_app_key);
+    $save_config('bkash_app_secret', $bkash_app_secret);
+    $save_config('bkash_username', $bkash_username);
+    $save_config('bkash_password', $bkash_password);
+    $save_config('bkash_env', $bkash_env);
+
+    _log('[' . $admin['username'] . ']: bKash Settings Saved', 'Admin', $admin['id']);
     r2(U . 'paymentgateway/bkash', 's', Lang::T('Settings_Saved_Successfully'));
 }
 
@@ -69,17 +68,19 @@ function bkash_create_transaction($trx, $user)
         'callbackURL' => U . 'order/view/' . $trx['id'] . '/check',
         'merchantInvoiceNumber' => $trx['id'],
     ];
-    $headers = [
-        'Authorization: ' . bkash_get_token(),
-        'X-App-Key: ' . $config['bkash_app_key']
-    ];
+    $headers = ['Authorization: ' . bkash_get_token(), 'X-App-Key: ' . $config['bkash_app_key']];
     $result = json_decode(Http::postJsonData(bkash_get_server() . 'checkout/create', $json, $headers), true);
     
-    if ($result['statusMessage'] != 'Successful') {
+    if (isset($result['statusMessage']) && $result['statusMessage'] != 'Successful') {
         sendTelegram("bKash payment failed\n\n" . json_encode($result, JSON_PRETTY_PRINT));
         r2(U . 'order/package', 'e', Lang::T("Failed to create transaction. " . $result['errorMessage']));
     }
-    
+
+    if(!isset($result['paymentID'])){
+         sendTelegram("bKash API Error: " . json_encode($result));
+         r2(U . 'order/package', 'e', Lang::T("Gateway Error. Please contact Admin."));
+    }
+
     $d = ORM::for_table('tbl_payment_gateway')
         ->where('username', $user['username'])
         ->where('status', 1)
@@ -89,7 +90,6 @@ function bkash_create_transaction($trx, $user)
     $d->pg_request = json_encode($result);
     $d->expired_date = date('Y-m-d H:i:s', strtotime('+ 4 HOURS'));
     $d->save();
-    
     header('Location: ' . $result['bkashURL']);
     exit();
 }
@@ -97,48 +97,40 @@ function bkash_create_transaction($trx, $user)
 function bkash_get_status($trx, $user)
 {
     global $config;
-
     $maxRetries = 3;
-    $retryDelay = 5; // Seconds between retries
+    $retryDelay = 5;
     $statusChecked = false;
+    
+    Http::postJsonData(bkash_get_server() . 'checkout/execute', ['paymentID' => $trx['gateway_trx_id']], ['Authorization: ' . bkash_get_token(), 'X-App-Key: ' . $config['bkash_app_key']]);
 
     for ($i = 0; $i < $maxRetries; $i++) {
-        Http::postJsonData(bkash_get_server() . 'checkout/execute', ['paymentID' => $trx['gateway_trx_id']], [
-            'Authorization: ' . bkash_get_token(), 
-            'X-App-Key: ' . $config['bkash_app_key']
-        ]);
-        $result = json_decode(Http::postJsonData(bkash_get_server() . 'checkout/payment/status', ['paymentID' => $trx['gateway_trx_id']], [
-            'Authorization: ' . bkash_get_token(), 
-            'X-App-Key: ' . $config['bkash_app_key']
-        ]), true);
+        $result = json_decode(Http::postJsonData(bkash_get_server() . 'checkout/payment/status', ['paymentID' => $trx['gateway_trx_id']], ['Authorization: ' . bkash_get_token(), 'X-App-Key: ' . $config['bkash_app_key']]), true);
         
-        if ($result['statusCode'] == '0000') {
+        if (isset($result['statusCode']) && $result['statusCode'] == '0000') {
             $statusChecked = true;
             break;
         }
-
-        // Wait before retrying
         sleep($retryDelay);
     }
 
     if (!$statusChecked) {
         sendTelegram("bKash payment status failed\n\n" . json_encode($result, JSON_PRETTY_PRINT));
-        r2(U . "order/view/" . $trx['id'], 'e', Lang::T("Failed to check status transaction. " . $result['errorMessage']));
+        r2(U . "order/view/" . $trx['id'], 'e', Lang::T("Failed to check status transaction."));
+        exit;
     }
 
     if ($trx['status'] == 2) {
         r2(U . "order/view/" . $trx['id'], 'd', Lang::T("Transaction has been paid.."));
     }
     
-    if ($result['transactionStatus'] == 'Completed') {
-        if (!Package::rechargeUser($user['id'], $trx['routers'], $trx['plan_id'], $trx['gateway'], 'bKash')) {
+    if (isset($result['transactionStatus']) && $result['transactionStatus'] == 'Completed') {
+        if (!Package::rechargeUser($user['id'], $trx['routers'], $trx['plan_id'], $trx['gateway'],  'bKash')) {
             r2(U . "order/view/" . $trx['id'], 'd', Lang::T("Failed to activate your Package, try again later."));
         }
-        
         $trx->pg_paid_response = json_encode($result);
         $trx->payment_method = 'bKash';
         $trx->payment_channel = 'bKash';
-        $trx->paid_date = date('Y-m-d H:i:s', $result['paid_at']);
+        $trx->paid_date = date('Y-m-d H:i:s');
         $trx->status = 2;
         $trx->save();
 
@@ -148,34 +140,16 @@ function bkash_get_status($trx, $user)
     }
 }
 
-// Callback
-// Callback
 function bkash_payment_notification()
 {
     global $config;
-
-    if ($_GET['status'] == 'success') {
-        $paymentID = $_GET['paymentID'];
-
-        // Execute payment
-        $paymentResponse = json_decode(Http::postJsonData(bkash_get_server() . 'checkout/execute', ['paymentID' => $paymentID], [
-            'Authorization: ' . bkash_get_token(), 
-            'X-App-Key: ' . $config['bkash_app_key']
-        ]), true);
-
-        // Store payment response in session
-        $_SESSION['bkash_payment_response'] = $paymentResponse;
-
-        // Redirect to success page or wherever you want to show the details
-        header('Location: ' . U . 'order/view/' . $_GET['paymentID']);
-        exit();
+    if (isset($_GET['status']) && $_GET['status'] == 'success') {
+        die('OK');
     } else {
-        sendTelegram("BKASH payment " . $_GET['status'] . " for paymentID: " . $_GET['paymentID']);
+        die('Failed');
     }
 }
 
-
-// Get bKash token for API requests
 function bkash_get_token()
 {
     global $config;
@@ -184,26 +158,25 @@ function bkash_get_token()
         'app_secret' => $config['bkash_app_secret']
     ];
     $url = bkash_get_server() . 'checkout/token/grant';
-    $headers = [
-        'username: ' . $config['bkash_username'], 
-        'password: ' . $config['bkash_password']
-    ];
-    
-    // Log the request data
-    error_log("Requesting token: URL: $url, Headers: " . json_encode($headers) . ", Body: " . json_encode($json));
-
+    $headers = ['username: ' . $config['bkash_username'], 'password: ' . $config['bkash_password']];
     $result = json_decode(Http::postJsonData($url, $json, $headers), true);
-    if (empty($result['id_token'])) {
-        error_log("Token generation failed: " . json_encode($result, JSON_PRETTY_PRINT));
-        sendTelegram("Failed to retrieve bKash token\n\n" . json_encode($result, JSON_PRETTY_PRINT));
-        r2(U . 'order/package', 'e', Lang::T("Failed to create bKash token"));
+    
+    if (isset($result['statusMessage']) && $result['statusMessage'] == 'Successful') {
+        return $result['id_token'];
+    } else {
+        sendTelegram("bKash Token Failed\n\n" . json_encode($result, JSON_PRETTY_PRINT));
+        r2(U . 'order/package', 'e', Lang::T("Gateway Token Error."));
     }
-    return $result['id_token'];
 }
 
 function bkash_get_server()
 {
     global $config;
-    return $config['bkash_environment'] == 'sandbox' ? 'https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/' : 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/';
+    $env = isset($config['bkash_env']) ? $config['bkash_env'] : 'Live';
+    if ($env == 'Live') {
+        return 'https://tokenized.pay.bka.sh/v1.2.0-beta/tokenized/';
+    } else {
+        return 'https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/';
+    }
 }
-
+?>
