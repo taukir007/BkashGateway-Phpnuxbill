@@ -41,7 +41,7 @@ This is a **completely redesigned** bKash payment gateway plugin for **PHPNuxbil
 
 1.  **Download/Clone the Plugin**:
     ```bash
-    git clone https://github.com/taukir007/BkashGateway-Phpnuxbill.git
+    git clone https://github.com/taukir007/BkashGateway-NuX.git
     ```
 
 2.  **Upload Files**:
