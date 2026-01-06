@@ -18,7 +18,7 @@ This is a **completely redesigned** bKash payment gateway plugin for **PHPNuxbil
 - [Configuration](#configuration)
 - [MikroTik Setup](#mikrotik-setup-walled-garden)
 - [Payment Flow](#payment-flow)
-- [License](#license)
+- [License](#[license](#license-------))
 - [Credits](#credits)
 
 ## Features
@@ -80,9 +80,16 @@ add dst-host=*.bka.sh
     * **Success:** Payment is verified, user is redirected back, and PHPNuxbill activates their plan automatically.
     * **Fail:** User is shown an error message.
 
-## License
+## License   - [ ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ]
 
-This project is open-source and licensed under the MIT License.
+This project is licensed under the **MIT License**.
+
+You are free to:
+- Use the project for personal or commercial purposes
+- Modify and customize the code
+- Distribute and share it
+
+See the [LICENSE](LICENSE) file for full license details.
 
 ## Credits
 
