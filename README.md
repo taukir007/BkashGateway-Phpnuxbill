@@ -18,7 +18,7 @@ This is a **completely redesigned** bKash payment gateway plugin for **PHPNuxbil
 - [Configuration](#configuration)
 - [MikroTik Setup](#mikrotik-setup-walled-garden)
 - [Payment Flow](#payment-flow)
-- [License](#[license](#license-------))
+- [License](#license-------)
 - [Credits](#credits)
 
 ## Features
